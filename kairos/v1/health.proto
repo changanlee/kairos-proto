@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+service HealthService {
+  rpc Check(CheckRequest) returns (CheckResponse);
+}
+
+message CheckRequest {}
+
+message CheckResponse {
+  string status = 1;
+  int64 timestamp = 2;
+  string version = 3;
+}
