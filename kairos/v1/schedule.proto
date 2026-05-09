@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// ScheduleService owns the day-plan lifecycle. Story 3.3 implements
+// Generate + Get; the remaining three are stubbed with Unimplemented and
+// land in Story 3.6 (interaction).
+service ScheduleService {
+  rpc GenerateDailySchedule(GenerateDailyScheduleRequest) returns (ScheduledDay);
+  rpc GetDailySchedule(GetDailyScheduleRequest) returns (ScheduledDay);
+  rpc RegenerateRemainder(RegenerateRemainderRequest) returns (ScheduledDay);
+  rpc UpdateSlotStatus(UpdateSlotStatusRequest) returns (UpdateSlotStatusResponse);
+  rpc ReorderSlots(ReorderSlotsRequest) returns (ScheduledDay);
+}
+
+message ScheduledDay {
+  string user_id = 1;
+  // ISO date YYYY-MM-DD in user's timezone (users.timezone)
+  string date = 2;
+  // "llm" | "rule_engine"
+  string generated_by = 3;
+  // Empty when generated_by="rule_engine"
+  string llm_explanation = 4;
+  repeated ScheduleSlot slots = 5;
+  google.protobuf.Timestamp generated_at = 6;
+  // FR20 capacity warning; empty when no overflow.
+  string warning_message = 7;
+}
+
+message ScheduleSlot {
+  string slot_id = 1;
+  // "task" | "calendar_block" | "break"
+  string kind = 2;
+  google.protobuf.Timestamp start = 3;
+  google.protobuf.Timestamp end = 4;
+  // "warmup" | "peak" | "gap"
+  string slot_type = 5;
+  string status = 6;
+  string task_id = 7;
+  TaskSnapshot task_snapshot = 8;
+  repeated Pomodoro pomodoros = 9;
+  string explanation = 10;
+  CalendarEventRef calendar_event = 11;
+  string recurrence_instance_of = 12;
+}
+
+message TaskSnapshot {
+  string title = 1;
+  int32 duration_min = 2;
+  string dream_binding = 3;
+  string difficulty = 4;
+}
+
+message Pomodoro {
+  int32 index = 1;
+  google.protobuf.Timestamp work_start = 2;
+  google.protobuf.Timestamp work_end = 3;
+  google.protobuf.Timestamp break_start = 4;
+  google.protobuf.Timestamp break_end = 5;
+}
+
+message CalendarEventRef {
+  string gcal_event_id = 1;
+  string summary = 2;
+  // "" | "travel" | "vacation" | "sick_leave" | "meeting"
+  string life_mode = 3;
+}
+
+message GenerateDailyScheduleRequest {
+  string date = 1; // YYYY-MM-DD
+}
+
+message GetDailyScheduleRequest {
+  string date = 1;
+}
+
+message RegenerateRemainderRequest {
+  string date = 1;
+}
+
+message UpdateSlotStatusRequest {
+  string date = 1;
+  string slot_id = 2;
+  string status = 3;
+}
+
+message UpdateSlotStatusResponse {
+  ScheduleSlot slot = 1;
+}
+
+message ReorderSlotsRequest {
+  string date = 1;
+  repeated string slot_order = 2;
+}

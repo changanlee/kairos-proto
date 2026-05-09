@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "kairos/v1/common.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// TaskService is the Epic-3 task primitive: CRUD + Quick Capture. AI-driven
+// scheduling happens in ScheduleService (Story 3.3+); this service just owns
+// the "task as data" contract.
+service TaskService {
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+  rpc QuickCapture(QuickCaptureRequest) returns (QuickCaptureResponse);
+  // Story 3.4: 25+5 pomodoro breakdown via LLM.
+  rpc BreakdownLargeTask(BreakdownLargeTaskRequest) returns (BreakdownLargeTaskResponse);
+}
+
+// Task is the API-facing shape. Internal-only columns (gcal_event_id,
+// gcal_synced_at, last_completed_at) are NOT in this message — they belong to
+// Stories 3.7 and 3.8 and the frontend has no business reading them.
+message Task {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  // duration_min = 0 means "not set" (same semantics as SQL NULL).
+  int32 duration_min = 4;
+  // Nullable.
+  google.protobuf.Timestamp deadline = 5;
+  // "" | "light" | "medium" | "heavy" — validator rejects any other value.
+  string difficulty = 6;
+  // Nullable; opaque JSONB on the backend.
+  RecurrenceRule recurrence = 7;
+  string dream_binding = 8;
+  bool is_archived = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message CreateTaskRequest {
+  string title = 1;                              // required, non-empty
+  string description = 2;
+  int32 duration_min = 3;                        // 0 or > 0
+  google.protobuf.Timestamp deadline = 4;
+  string difficulty = 5;                         // "" | light | medium | heavy
+  RecurrenceRule recurrence = 6;
+  string dream_binding = 7;
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+message GetTaskRequest {
+  string id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message ListTasksRequest {
+  // If false (default), only non-archived tasks are returned.
+  bool include_archived = 1;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message UpdateTaskRequest {
+  string id = 1;
+  // Required. Paths reference Task fields in snake_case (AIP-134).
+  // Fields not listed are left untouched (partial update).
+  google.protobuf.FieldMask update_mask = 2;
+  Task task = 3;
+}
+
+message UpdateTaskResponse {
+  Task task = 1;
+}
+
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+message DeleteTaskResponse {
+  // Intentionally empty. Deletion is soft (is_archived=true); the row remains.
+}
+
+message QuickCaptureRequest {
+  string title = 1;                              // required, non-empty
+}
+
+message QuickCaptureResponse {
+  Task task = 1;
+}
+
+message BreakdownLargeTaskRequest {
+  string task_id = 1;
+}
+
+message BreakdownLargeTaskResponse {
+  repeated Subunit subunits = 1;
+}
+
+message Subunit {
+  string label = 1;
+  int32 duration_min = 2;
+  int32 break_min = 3;
+}

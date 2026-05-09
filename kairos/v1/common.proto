@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// RecurrenceRule is the API-facing representation of tasks.recurrence (JSONB).
+// Schema is authoritative in epic-3-structural-pass.md §3. The backend writes
+// this struct as JSONB (with a version stamp) and reads it back; Story 3.7's
+// expansion engine is the first downstream consumer.
+message RecurrenceRule {
+  // "daily" | "weekdays" | "weekly_n" | "interval"
+  string kind = 1;
+  // kind="weekdays": 0=Sunday..6=Saturday
+  repeated int32 weekdays = 2;
+  // kind="weekly_n": target count per week
+  int32 weekly_n = 3;
+  // kind="interval": every N days from anchor_date
+  int32 interval_days = 4;
+  // kind="interval": ISO date "YYYY-MM-DD"
+  string anchor_date = 5;
+  // Optional activation / pause windows; ISO dates "YYYY-MM-DD"
+  string start_date = 6;
+  string end_date = 7;
+  string pause_from = 8;
+  string pause_until = 9;
+}
