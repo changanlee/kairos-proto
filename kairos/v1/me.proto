@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// MeService returns the currently authenticated user. Exists primarily to
+// verify that the auth interceptor has injected user_id into the RPC context.
+// Later services (Task, Schedule, ...) reuse the same pattern; this one is
+// kept minimal so isolation tests don't depend on any feature-level logic.
+service MeService {
+  rpc GetMe(GetMeRequest) returns (GetMeResponse);
+}
+
+message GetMeRequest {}
+
+message GetMeResponse {
+  User user = 1;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  string role = 4;
+  bool onboarding_completed = 5;
+}
