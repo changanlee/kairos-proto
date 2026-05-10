@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/field_mask.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// UserPreferenceService owns single-user toggle preferences. Story 4.1
+// ships only the FR51 chronotype-reveal opt-out; later epics extend.
+service UserPreferenceService {
+  rpc GetPreferences(GetPreferencesRequest) returns (GetPreferencesResponse);
+  rpc UpdatePreferences(UpdatePreferencesRequest) returns (UpdatePreferencesResponse);
+}
+
+message GetPreferencesRequest {}
+
+message UserPreferences {
+  bool chronotype_reveal_opted_out = 1;
+  // Reserved for later epics (numbering preserved):
+  //   2: notification_minutes_before (Epic 5)
+  //   3: silent_catchup_enabled (Epic 6)
+  //   4: energy_checkin_enabled (Epic 7)
+}
+
+message UpdatePreferencesRequest {
+  // FieldMask paths in snake_case (epic-3 structural-pass §8.5 convention).
+  // Currently supported: "chronotype_reveal_opted_out".
+  google.protobuf.FieldMask update_mask = 1;
+  UserPreferences preferences = 2;
+}
+
+message GetPreferencesResponse {
+  UserPreferences preferences = 1;
+}
+
+message UpdatePreferencesResponse {
+  UserPreferences preferences = 1;
+}

@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "kairos/v1/schedule.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// OnboardingService carries a newly-logged-in user through the 6-question
+// flow per epic-4-structural-pass §2. State machine:
+//   step 0  → not started
+//   step 1..6 → SubmitAnswer(N) advances step to max(current, N)
+//   step 7  → CompleteOnboarding has been called (terminal)
+service OnboardingService {
+  rpc GetOnboardingStatus(GetOnboardingStatusRequest) returns (GetOnboardingStatusResponse);
+  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
+  rpc CompleteOnboarding(CompleteOnboardingRequest) returns (CompleteOnboardingResponse);
+}
+
+// buf STANDARD lint disallows reusing google.protobuf.Empty across RPCs;
+// per-method empty requests document intent and stay forward-compatible
+// (next epic adds optional flags here without breaking the wire).
+message GetOnboardingStatusRequest {}
+message CompleteOnboardingRequest {}
+
+message OnboardingStatus {
+  int32 step = 1;                                // 0..7
+  AnswersDoc answers = 2;                        // only submitted Q's are populated
+  google.protobuf.Timestamp completed_at = 3;    // present iff step == 7
+  int32 total_steps = 4;                         // constant 6 in MVP
+}
+
+message AnswersDoc {
+  Q1Answer q1 = 1;
+  Q2Answer q2 = 2;
+  Q3Answer q3 = 3;
+  Q4Answer q4 = 4;
+  Q5Answer q5 = 5;
+  Q6Answer q6 = 6;
+}
+
+// Q1 「最近想做但一直沒動的事？」
+message Q1Answer {
+  string text             = 1;  // non-empty, ≤200 chars
+  string created_task_id  = 2;  // server-assigned by SubmitAnswer
+}
+
+// Q2 「今天先動哪一個？」 kind ∈ {"selected_existing","other_text","safe_exit"}
+message Q2Answer {
+  string kind              = 1;
+  string task_id           = 2;  // when kind="selected_existing"
+  string text              = 3;  // when kind="other_text"
+  string created_task_id   = 4;  // when kind="other_text" (server-assigned)
+}
+
+// Q3 「放假幾點自然醒？」 kind ∈ {"selected","safe_exit"}
+// wake_time_bucket ∈ {"before_7","7_to_9","after_9"} when kind="selected"
+message Q3Answer {
+  string kind              = 1;
+  string wake_time_bucket  = 2;
+}
+
+// Q4 「最燒腦的事幾點做？」 kind ∈ {"selected","safe_exit"}
+// peak_bucket ∈ {"morning","afternoon","evening","late_night"} when kind="selected"
+message Q4Answer {
+  string kind         = 1;
+  string peak_bucket  = 2;
+}
+
+// Q5 「拖延時的感覺？」 kind ∈ {"selected","safe_exit"}; tags non-empty when selected
+// tags ⊆ {"overwhelmed","perfectionism","unclear_why","low_energy","avoidance","distracted"}
+message Q5Answer {
+  string kind          = 1;
+  repeated string tags = 2;
+}
+
+// Q6 「你的上班時段？」 kind ∈ {"fixed","flexible","safe_exit"}
+// start/end "HH:MM" when kind="fixed"
+message Q6Answer {
+  string kind   = 1;
+  string start  = 2;
+  string end    = 3;
+}
+
+message SubmitAnswerRequest {
+  int32 step = 1;     // 1..6; must equal current_step or current_step+1
+  Q1Answer q1 = 2;
+  Q2Answer q2 = 3;
+  Q3Answer q3 = 4;
+  Q4Answer q4 = 5;
+  Q5Answer q5 = 6;
+  Q6Answer q6 = 7;
+}
+
+message GetOnboardingStatusResponse {
+  OnboardingStatus status = 1;
+}
+
+message SubmitAnswerResponse {
+  OnboardingStatus status = 1;
+}
+
+message CompleteOnboardingResponse {
+  // First-day schedule, generated immediately so the frontend can hand
+  // off to Today View without an extra round-trip.
+  ScheduledDay schedule = 1;
+}
