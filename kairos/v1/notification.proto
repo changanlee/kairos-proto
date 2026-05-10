@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// NotificationService stores per-device Web Push subscriptions. Story 5.1's
+// dispatcher reads these rows to fan out reminders; this story (4.3) only
+// owns Register/Unregister/List.
+service NotificationService {
+  rpc RegisterPushSubscription(RegisterPushSubscriptionRequest)
+      returns (RegisterPushSubscriptionResponse);
+  rpc UnregisterPushSubscription(UnregisterPushSubscriptionRequest)
+      returns (UnregisterPushSubscriptionResponse);
+  rpc ListPushSubscriptions(ListPushSubscriptionsRequest)
+      returns (ListPushSubscriptionsResponse);
+}
+
+// PushSubscription is the wire shape for Settings device list. The keys
+// (p256dh / auth) are intentionally NOT echoed back — they're write-only
+// from the client's perspective; needing them means writing a new row.
+message PushSubscription {
+  string id = 1;
+  string endpoint = 2;
+  string user_agent = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp last_seen_at = 5;
+}
+
+message RegisterPushSubscriptionRequest {
+  // Push Service URL chosen by the browser (FCM / Mozilla autopush). HTTPS only.
+  string endpoint = 1;
+  // Client public key, URL-safe base64 unpadded.
+  string p256dh_key = 2;
+  // Client auth secret, URL-safe base64 unpadded.
+  string auth_key = 3;
+  // Best-effort UA label. Capped client-side at 200 chars; the server doesn't
+  // enforce a length but rejects empty endpoints/keys.
+  string user_agent = 4;
+}
+
+message RegisterPushSubscriptionResponse {
+  PushSubscription subscription = 1;
+}
+
+message UnregisterPushSubscriptionRequest {
+  string subscription_id = 1;
+}
+
+message UnregisterPushSubscriptionResponse {}
+
+message ListPushSubscriptionsRequest {}
+
+message ListPushSubscriptionsResponse {
+  repeated PushSubscription subscriptions = 1;
+}
