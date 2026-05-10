@@ -6,15 +6,16 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
 
-// ScheduleService owns the day-plan lifecycle. Story 3.3 implements
-// Generate + Get; the remaining three are stubbed with Unimplemented and
-// land in Story 3.6 (interaction).
+// ScheduleService owns the day-plan lifecycle. Each response wraps the
+// ScheduledDay payload in a method-specific message — buf STANDARD lint
+// disallows sharing a response type across RPCs because it makes the
+// generated code's request / response pairs ambiguous in some clients.
 service ScheduleService {
-  rpc GenerateDailySchedule(GenerateDailyScheduleRequest) returns (ScheduledDay);
-  rpc GetDailySchedule(GetDailyScheduleRequest) returns (ScheduledDay);
-  rpc RegenerateRemainder(RegenerateRemainderRequest) returns (ScheduledDay);
+  rpc GenerateDailySchedule(GenerateDailyScheduleRequest) returns (GenerateDailyScheduleResponse);
+  rpc GetDailySchedule(GetDailyScheduleRequest) returns (GetDailyScheduleResponse);
+  rpc RegenerateRemainder(RegenerateRemainderRequest) returns (RegenerateRemainderResponse);
   rpc UpdateSlotStatus(UpdateSlotStatusRequest) returns (UpdateSlotStatusResponse);
-  rpc ReorderSlots(ReorderSlotsRequest) returns (ScheduledDay);
+  rpc ReorderSlots(ReorderSlotsRequest) returns (ReorderSlotsResponse);
 }
 
 message ScheduledDay {
@@ -74,12 +75,24 @@ message GenerateDailyScheduleRequest {
   string date = 1; // YYYY-MM-DD
 }
 
+message GenerateDailyScheduleResponse {
+  ScheduledDay day = 1;
+}
+
 message GetDailyScheduleRequest {
   string date = 1;
 }
 
+message GetDailyScheduleResponse {
+  ScheduledDay day = 1;
+}
+
 message RegenerateRemainderRequest {
   string date = 1;
+}
+
+message RegenerateRemainderResponse {
+  ScheduledDay day = 1;
 }
 
 message UpdateSlotStatusRequest {
@@ -95,4 +108,8 @@ message UpdateSlotStatusResponse {
 message ReorderSlotsRequest {
   string date = 1;
   repeated string slot_order = 2;
+}
+
+message ReorderSlotsResponse {
+  ScheduledDay day = 1;
 }
