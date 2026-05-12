@@ -16,6 +16,11 @@ service ScheduleService {
   rpc RegenerateRemainder(RegenerateRemainderRequest) returns (RegenerateRemainderResponse);
   rpc UpdateSlotStatus(UpdateSlotStatusRequest) returns (UpdateSlotStatusResponse);
   rpc ReorderSlots(ReorderSlotsRequest) returns (ReorderSlotsResponse);
+  // Story 5.2: 15-second grace-window Undo for accidental swipe-completions.
+  // The client passes back the completion_event_id it received in
+  // UpdateSlotStatusResponse; server applies a DB-level time gate and
+  // FK cascade-deletes the related energy_checkin atomically.
+  rpc UndoCompletion(UndoCompletionRequest) returns (UndoCompletionResponse);
 }
 
 message ScheduledDay {
@@ -99,10 +104,40 @@ message UpdateSlotStatusRequest {
   string date = 1;
   string slot_id = 2;
   string status = 3;
+  // Story 5.2: optional energy self-report. Empty string = "user skipped
+  // the check-in" (we still write the completion_event, no energy_checkin).
+  // Only honored when status == "completed".
+  string energy_level = 4; // "" | "green" | "yellow" | "red"
+  // Story 5.2: optional. Server clamps to [slot.start, now()] — clients
+  // can't backdate or pre-date a completion outside the slot's window.
+  google.protobuf.Timestamp client_completed_at = 5;
 }
 
 message UpdateSlotStatusResponse {
   ScheduleSlot slot = 1;
+  // Story 5.2: populated when status == "completed". Frontend passes this
+  // back to UndoCompletion to disambiguate concurrent completion writes
+  // (see Story 5.3 Postpone-Layer-1 race).
+  string completion_event_id = 2;
+  // Story 5.2: populated when energy_level was provided.
+  string energy_checkin_id = 3;
+}
+
+message UndoCompletionRequest {
+  string date = 1;
+  string slot_id = 2;
+  // Required: returned from UpdateSlotStatusResponse. Server matches against
+  // this exact id (not "latest completion for slot") to stay idempotent
+  // under retries and concurrent postpone flows.
+  string completion_event_id = 3;
+}
+
+message UndoCompletionResponse {
+  ScheduleSlot slot = 1;
+  // True when an energy_checkin row was cascade-deleted along with the
+  // completion_event. Frontend uses this to decide whether to re-show the
+  // EnergyCheckIn prompt or skip straight back to the swipeable slot.
+  bool energy_checkin_reverted = 2;
 }
 
 message ReorderSlotsRequest {
