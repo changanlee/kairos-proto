@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// DreamService — Story 8.3 user-owned dream CRUD + manual task binding.
+// MiniLM auto-inference (Story 8.3 §4 in the structural pass) is deferred
+// past MVP; bindings are user_explicit only for now.
+service DreamService {
+  rpc ListDreams(ListDreamsRequest) returns (ListDreamsResponse);
+  rpc CreateDream(CreateDreamRequest) returns (CreateDreamResponse);
+  rpc UpdateDream(UpdateDreamRequest) returns (UpdateDreamResponse);
+  rpc ArchiveDream(ArchiveDreamRequest) returns (ArchiveDreamResponse);
+  rpc UnarchiveDream(UnarchiveDreamRequest) returns (UnarchiveDreamResponse);
+
+  // Manual task↔dream binding. confidence is always 1.0 for user_explicit.
+  rpc BindTaskToDream(BindTaskToDreamRequest) returns (BindTaskToDreamResponse);
+  rpc UnbindTaskFromDream(UnbindTaskFromDreamRequest) returns (UnbindTaskFromDreamResponse);
+
+  // List dreams currently bound to a task (used by Inbox edit card).
+  rpc ListBindingsForTask(ListBindingsForTaskRequest) returns (ListBindingsForTaskResponse);
+}
+
+message Dream {
+  string id           = 1;
+  string title        = 2;
+  string elaboration  = 3;
+  string source       = 4; // "ai_dialogue" | "manual"
+  string session_id   = 5; // empty for manual dreams
+  google.protobuf.Timestamp created_at  = 6;
+  google.protobuf.Timestamp updated_at  = 7;
+  google.protobuf.Timestamp archived_at = 8; // nil for active
+}
+
+message TaskBinding {
+  string task_id         = 1;
+  string dream_id        = 2;
+  string binding_source  = 3; // "user_explicit" | "ai_inferred"
+  double confidence      = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message ListDreamsRequest {
+  bool include_archived = 1;
+}
+message ListDreamsResponse {
+  repeated Dream dreams = 1;
+}
+
+message CreateDreamRequest {
+  string title       = 1;
+  string elaboration = 2;
+}
+message CreateDreamResponse {
+  Dream dream = 1;
+}
+
+message UpdateDreamRequest {
+  string id          = 1;
+  string title       = 2;
+  string elaboration = 3;
+}
+message UpdateDreamResponse {
+  Dream dream = 1;
+}
+
+message ArchiveDreamRequest  { string id = 1; }
+message ArchiveDreamResponse { Dream dream = 1; }
+
+message UnarchiveDreamRequest  { string id = 1; }
+message UnarchiveDreamResponse { Dream dream = 1; }
+
+message BindTaskToDreamRequest {
+  string task_id  = 1;
+  string dream_id = 2;
+}
+message BindTaskToDreamResponse {
+  TaskBinding binding = 1;
+}
+
+message UnbindTaskFromDreamRequest {
+  string task_id  = 1;
+  string dream_id = 2;
+}
+message UnbindTaskFromDreamResponse {}
+
+message ListBindingsForTaskRequest {
+  string task_id = 1;
+}
+message ListBindingsForTaskResponse {
+  repeated Dream dreams = 1; // resolved + active only
+}
