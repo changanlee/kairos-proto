@@ -21,6 +21,17 @@ service ScheduleService {
   // UpdateSlotStatusResponse; server applies a DB-level time gate and
   // FK cascade-deletes the related energy_checkin atomically.
   rpc UndoCompletion(UndoCompletionRequest) returns (UndoCompletionResponse);
+  // Story 5.3: three-layer progressive postpone (FR27 / UX-DR8).
+  //   Layer 1 (1st right-swipe today): shift slot +10min, no UI count.
+  //   Layer 2 (2nd): server returns requires_target=true; client opens a
+  //                  Sheet to pick another slot; second call swaps them.
+  //   Layer 3 (3rd+): silent removal — slot becomes a gap; task stays in
+  //                   inbox via silent_skipped (Story 6.4 picks up).
+  rpc PostponeSlot(PostponeSlotRequest) returns (PostponeSlotResponse);
+  // Story 5.3 Undo: 10s UI window. Server gates on
+  // task_daily_state.last_layer == request.undo_layer to reject double-undo
+  // and prevent concurrent postpones from being silently rewound.
+  rpc UndoPostpone(UndoPostponeRequest) returns (UndoPostponeResponse);
 }
 
 message ScheduledDay {
@@ -147,4 +158,52 @@ message ReorderSlotsRequest {
 
 message ReorderSlotsResponse {
   ScheduledDay day = 1;
+}
+
+// Story 5.3 — PostponeSlot.
+//
+// Two-phase for Layer 2: first call leaves target_slot_id empty; server
+// detects "this is the 2nd postpone today" and returns requires_target=true
+// without mutating state. Client opens a Sheet, the user picks a target,
+// client re-calls with target_slot_id populated.
+//
+// Layer 1 + 3 complete in one call.
+message PostponeSlotRequest {
+  string date = 1;           // YYYY-MM-DD in user TZ
+  string slot_id = 2;        // the slot being postponed
+  string target_slot_id = 3; // optional; only Layer 2 second call uses it
+}
+
+message PostponeSlotResponse {
+  // 1 | 2 | 3 — which layer the server applied. Frontend uses this to
+  // decide whether to show "已推遲" toast (Layer 1), close the Sheet
+  // (Layer 2), or animate a fade-out (Layer 3).
+  int32 layer_applied = 1;
+  // Populated for Layer 1 + 2; nil for Layer 3 (slot becomes a gap and
+  // the client invalidates the day to refetch).
+  ScheduleSlot new_slot = 2;
+  // The running daily total, useful for telemetry. The UI deliberately
+  // does NOT display this — see FR27's "no judgmental counting."
+  int32 postpone_count_today = 3;
+  // True when this is the 2nd postpone today and target_slot_id was empty.
+  // The client must show the picker and call again with the chosen target.
+  bool requires_target = 4;
+}
+
+message UndoPostponeRequest {
+  string date = 1;
+  // Layer 3 nukes the slot_id reference — undo identifies the task by id
+  // and (for Layer 1/2) the original slot_id the client captured at
+  // postpone-time.
+  string task_id = 2;
+  string original_slot_id = 3;
+  // The layer the client thinks it's undoing. Server rejects with
+  // FailedPrecondition if task_daily_state.last_layer no longer matches —
+  // protects against double-undo + concurrent postpones.
+  int32 undo_layer = 4;
+}
+
+message UndoPostponeResponse {
+  ScheduleSlot restored_slot = 1;
+  int32 postpone_count_after_undo = 2; // should be 0 per ResetTaskDailyState
 }
