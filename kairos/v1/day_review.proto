@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// DayReviewService returns the end-of-day summary that powers Story 6.2's
+// review screen. All aggregation happens server-side; the response is a
+// closed shape the UI renders without further computation.
+service DayReviewService {
+  rpc GetDayReview(GetDayReviewRequest) returns (GetDayReviewResponse);
+}
+
+message GetDayReviewRequest {
+  // YYYY-MM-DD interpreted in the user's timezone. The server applies
+  // day_boundary_hour (from users.preferences) when building the UTC
+  // window — so "2026-04-17" with boundary=4 spans 2026-04-17 04:00 to
+  // 2026-04-18 04:00 in the user's local TZ.
+  string date = 1;
+}
+
+message GetDayReviewResponse {
+  repeated DayReviewItem items     = 1;
+  DayReviewSummary summary         = 2;
+  TomorrowPreview next_day_preview = 3;
+  FeedbackDecision bottom_feedback = 4;
+}
+
+message DayReviewItem {
+  string task_id    = 1;
+  string task_title = 2;
+  // "completed" | "postponed" | "skipped". The server collapses
+  // "no-action" into "skipped" so the UI never has to deal with an
+  // ambiguous "incomplete" state (UX Spec AC 6.2.2).
+  string status               = 3;
+  google.protobuf.Timestamp completed_at = 4;
+  int32 postpone_count        = 5;
+  // "" | "green" | "yellow" | "red" — only present when status=completed
+  // and the user logged a check-in (Story 5.2).
+  string energy_level         = 6;
+  string slot_type            = 7;
+}
+
+message DayReviewSummary {
+  // Counts only. No percentage / streak / debt / comparison — Day Review
+  // is intentionally non-judgmental (Story 6.3 feedback mode applies the
+  // same principle at the action layer).
+  int32 total_scheduled = 1;
+  int32 total_completed = 2;
+}
+
+message TomorrowPreview {
+  // Top 2-3 pending task slots from tomorrow's schedule. Empty when
+  // tomorrow's schedule hasn't generated yet.
+  repeated TaskPreview items = 1;
+}
+
+message TaskPreview {
+  string task_id    = 1;
+  string task_title = 2;
+}
+
+// FeedbackDecision is the server's choice of how to surface a soft
+// affirmation at the bottom of the review. Story 6.3 (FeedbackMode
+// system) renders these primitives; Epic 8 morning greeting + Epic 9
+// weekly review will reuse the same decision shape.
+message FeedbackDecision {
+  // "describe" | "encourage" | "silence". Story 6.3's FeedbackBlock
+  // maps each to a visual treatment.
+  string primary_mode   = 1;
+  string primary_text   = 2;
+  // Optional. Empty mode means "no second line."
+  string secondary_mode = 3;
+  string secondary_text = 4;
+}
