@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "kairos/v1/schedule.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// NotificationActionService handles the three quick-action buttons on
+// Web Push notifications: 開始 / 等一下 / 跳過. Service Worker calls
+// these endpoints directly so the user can dispatch a task without
+// opening the app.
+//
+// All three RPCs are JWT-auth'd via the standard interceptor — see
+// epic-5-structural-pass §9.3.
+service NotificationActionService {
+  // Start: mark the slot as in_progress. SW also opens
+  // /today?slot=<id>&action=start in parallel so the user lands on the
+  // highlighted slot when they reach for the device.
+  rpc StartTaskFromNotification(StartTaskFromNotificationRequest)
+      returns (StartTaskFromNotificationResponse);
+
+  // Postpone: internally calls schedule.Service.PostponeSlot with an
+  // empty target_slot_id (Layer 1 path). If the user has already
+  // postponed twice in-app, the server falls back to applied=false +
+  // layer_applied=2 so the SW knows to open the app for Layer 2 picker.
+  rpc PostponeFromNotification(PostponeFromNotificationRequest)
+      returns (PostponeFromNotificationResponse);
+
+  // Skip: forces Layer 3 regardless of postpone_count. Slot becomes a
+  // gap, silent_skipped flag is set, Story 6.4 picks it up tomorrow.
+  rpc SkipFromNotification(SkipFromNotificationRequest)
+      returns (SkipFromNotificationResponse);
+}
+
+message StartTaskFromNotificationRequest {
+  string task_id       = 1;
+  string schedule_date = 2;
+  string slot_id       = 3;
+}
+
+message StartTaskFromNotificationResponse {
+  // The slot after status flip — empty when applied=false.
+  ScheduleSlot slot = 1;
+  // false when the slot is missing / completed / belongs to another task.
+  // SW should open the app to /today as a graceful fallback.
+  bool applied = 2;
+}
+
+message PostponeFromNotificationRequest {
+  string task_id       = 1;
+  string schedule_date = 2;
+  string slot_id       = 3;
+}
+
+message PostponeFromNotificationResponse {
+  // True when Layer 1 / 3 applied. False when the slot is already
+  // terminal OR when the server determined Layer 2 (requires_target=true)
+  // — SW reads layer_applied to disambiguate.
+  bool applied        = 1;
+  // The layer the server attempted: 1 / 2 / 3. Used by the SW to detect
+  // the Layer 2 case (open app to surface the picker) vs a real failure.
+  int32 layer_applied = 2;
+}
+
+message SkipFromNotificationRequest {
+  string task_id       = 1;
+  string schedule_date = 2;
+  string slot_id       = 3;
+}
+
+message SkipFromNotificationResponse {
+  // false when the slot is already completed/skipped or not a task slot.
+  bool applied = 1;
+}
