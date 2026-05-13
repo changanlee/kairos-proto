@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// DeepDialogueService — Story 8.1 unary deep-dialogue session.
+//
+// MVP carries the full turn-history exchange on each SubmitTurn call
+// (no SSE streaming). The frontend renders the AI response after the
+// unary RPC resolves. Streaming + resume soft-intro are Story 8.2 v2.
+service DeepDialogueService {
+  // StartOrResume returns the existing in_progress session for this
+  // user, or creates a new one if none exists. The opening AI turn is
+  // produced on the first call and persisted before returning.
+  rpc StartOrResume(StartOrResumeRequest) returns (StartOrResumeResponse);
+
+  // SubmitTurn accepts the user's reply, runs the LLM for the next AI
+  // turn, persists both turns, and returns the AI response + updated
+  // session metadata.
+  rpc SubmitTurn(SubmitTurnRequest) returns (SubmitTurnResponse);
+
+  // Complete closes the session. Server-side extracts the dreams from
+  // the checkpoint, asynchronously generates phrase templates for each
+  // (Story 8.3 hook).
+  rpc Complete(CompleteRequest) returns (CompleteResponse);
+
+  // ListTurns is for the frontend resume case — render the existing
+  // turns when re-entering an in_progress session.
+  rpc ListTurns(ListTurnsRequest) returns (ListTurnsResponse);
+}
+
+message Session {
+  string id          = 1;
+  string status      = 2; // "in_progress" | "completed" | "abandoned"
+  int32  turn_count  = 3;
+  string phase       = 4; // mirrored from checkpoint.phase
+  google.protobuf.Timestamp started_at   = 5;
+  google.protobuf.Timestamp last_turn_at = 6;
+}
+
+message Turn {
+  string id        = 1;
+  int32  turn_index = 2;
+  string role      = 3; // "ai" | "user"
+  string content   = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message ExtractedDream {
+  string title       = 1;
+  string elaboration = 2;
+}
+
+message StartOrResumeRequest {}
+message StartOrResumeResponse {
+  Session session       = 1;
+  repeated Turn turns   = 2; // most recent turns first; empty on a brand-new session except for the opening AI turn
+  bool    is_new        = 3;
+}
+
+message SubmitTurnRequest {
+  string session_id = 1;
+  string user_text  = 2;
+}
+message SubmitTurnResponse {
+  Session session             = 1;
+  Turn    user_turn           = 2;
+  Turn    ai_turn             = 3;
+  bool    should_close        = 4;
+  repeated ExtractedDream extracted_dreams = 5;
+}
+
+message CompleteRequest {
+  string session_id                       = 1;
+  repeated ExtractedDream confirmed_dreams = 2; // user-edited list before commit
+}
+message CompleteResponse {
+  Session session   = 1;
+  repeated string created_dream_ids = 2;
+}
+
+message ListTurnsRequest {
+  string session_id = 1;
+}
+message ListTurnsResponse {
+  repeated Turn turns = 1;
+}
