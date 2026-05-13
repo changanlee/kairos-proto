@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// EnergyService is the single read source for energy_checkins:
+//
+//   - RecordEnergyCheckIn: manual entry for Settings "log how I'm feeling"
+//     and future SW push-prompt paths. NOT called by Story 5.2's swipe
+//     ritual — that uses UpdateSlotStatus's idempotent path for tx-atomic
+//     completion+check-in writes.
+//   - GetEnergyHistory: Story 5.4's low-energy nudge reads the last few
+//     check-ins to decide whether to surface the startup hint. Future
+//     Settings UI will paginate through this.
+//   - GetHourlyAggregate: Epic 7 Story 7.1 Heatmap + 7.2 β-component.
+//     Single 24×7 query — no per-cell RPC round-trips.
+service EnergyService {
+  rpc RecordEnergyCheckIn(RecordEnergyCheckInRequest) returns (RecordEnergyCheckInResponse);
+  rpc GetEnergyHistory(GetEnergyHistoryRequest)       returns (GetEnergyHistoryResponse);
+  rpc GetHourlyAggregate(GetHourlyAggregateRequest)   returns (GetHourlyAggregateResponse);
+}
+
+// ── RecordEnergyCheckIn ─────────────────────────────────────────────────
+
+message RecordEnergyCheckInRequest {
+  // Optional. Story 5.5 allows manual / SW-driven check-ins with no task
+  // attached (e.g., "I just feel low right now"). When set, must be a
+  // task owned by the authenticated user — server-side check enforces it.
+  string task_id            = 1;
+  // Optional. Pair the check-in to a completion_event so Story 7.4 can
+  // correlate "I felt X" with "task actually got done" outcomes.
+  string completion_event_id = 2;
+  // "green" | "yellow" | "red" — anything else → InvalidArgument.
+  string level              = 3;
+  // "warmup" | "peak" | "gap"; empty string treated as NULL.
+  string slot_type          = 4;
+  // Optional. Server clamps to [now-5min, now+1s] to reject far-past
+  // backfills and future timestamps. Empty → server uses now().
+  google.protobuf.Timestamp checked_in_at = 5;
+}
+
+message RecordEnergyCheckInResponse {
+  string id = 1;
+  google.protobuf.Timestamp checked_in_at = 2;
+}
+
+// ── GetEnergyHistory ────────────────────────────────────────────────────
+
+message GetEnergyHistoryRequest {
+  // YYYY-MM-DD; interpreted in users.timezone. Inclusive.
+  string start_date = 1;
+  string end_date   = 2;
+  // Defaults to 100, capped at 500.
+  int32 page_size  = 3;
+  // Opaque keyset cursor returned by the previous response. Empty for
+  // first page.
+  string page_token = 4;
+}
+
+message GetEnergyHistoryResponse {
+  repeated EnergyCheckIn items   = 1;
+  // Empty when there are no more pages.
+  string next_page_token         = 2;
+}
+
+message EnergyCheckIn {
+  string id                                = 1;
+  string task_id                           = 2; // "" when manual
+  string completion_event_id               = 3;
+  string level                             = 4;
+  string slot_type                         = 5;
+  // JOIN'd from tasks; "" when task was hard-deleted or check-in is
+  // manual. Frontend can render "(任務已移除)" placeholder if needed.
+  string task_title                        = 6;
+  google.protobuf.Timestamp checked_in_at  = 7;
+}
+
+// ── GetHourlyAggregate ──────────────────────────────────────────────────
+
+message GetHourlyAggregateRequest {
+  // YYYY-MM-DD, inclusive. Range > 90 days → InvalidArgument.
+  string start_date = 1;
+  string end_date   = 2;
+}
+
+message GetHourlyAggregateResponse {
+  // Sparse: zero-count cells are omitted. Frontend fills the 24×7 grid
+  // with zeros where missing.
+  repeated HourlyBucket buckets = 1;
+  // Echoed back so the frontend knows which TZ the aggregation used.
+  string timezone               = 2;
+}
+
+message HourlyBucket {
+  int32 hour_of_day  = 1; // 0..23
+  int32 day_of_week  = 2; // 0=Sun..6=Sat (Postgres EXTRACT(DOW) semantic)
+  int32 green_count  = 3;
+  int32 yellow_count = 4;
+  int32 red_count    = 5;
+}
