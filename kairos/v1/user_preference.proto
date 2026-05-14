@@ -21,6 +21,11 @@ message UserPreferences {
   //   2: notification_minutes_before (Epic 5)
   //   3: silent_catchup_enabled (Epic 6)
   //   4: energy_checkin_enabled (Epic 7)
+
+  // Hour 0-6 in the user's timezone at which "the new day" starts for
+  // boundary-aware queries (Day Review, Silent Recovery, Today reset).
+  // Lives in users.preferences JSONB (Story 6.1). Story 11.1 retrofit.
+  int32 day_boundary_hour = 5;
 }
 
 message UpdatePreferencesRequest {
