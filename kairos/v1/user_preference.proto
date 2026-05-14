@@ -26,6 +26,10 @@ message UserPreferences {
   // boundary-aware queries (Day Review, Silent Recovery, Today reset).
   // Lives in users.preferences JSONB (Story 6.1). Story 11.1 retrofit.
   int32 day_boundary_hour = 5;
+
+  // Hides the AI hypothesis section in weekly review (Story 9.5).
+  // Lives in users.preferences JSONB.
+  bool ai_hypothesis_silenced = 6;
 }
 
 message UpdatePreferencesRequest {
