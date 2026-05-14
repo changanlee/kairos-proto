@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// WeeklyReviewService — Story 9.1 weekly review read API.
+// MVP: latest review + by week (for history navigation). Write APIs
+// (next-week-preview responses) ship in Story 9.3 when the question
+// loop becomes real.
+service WeeklyReviewService {
+  rpc GetLatestWeeklyReview(GetLatestWeeklyReviewRequest) returns (GetLatestWeeklyReviewResponse);
+  rpc GetWeeklyReviewByWeek(GetWeeklyReviewByWeekRequest) returns (GetWeeklyReviewByWeekResponse);
+}
+
+message GetLatestWeeklyReviewRequest {}
+message GetLatestWeeklyReviewResponse {
+  WeeklyReview review = 1; // nil when none generated yet
+}
+
+message GetWeeklyReviewByWeekRequest {
+  string week_start = 1; // YYYY-MM-DD (Sunday in user's tz)
+}
+message GetWeeklyReviewByWeekResponse {
+  WeeklyReview review = 1;
+}
+
+message WeeklyReview {
+  string id          = 1;
+  string week_start  = 2; // YYYY-MM-DD
+  string status      = 3; // "succeeded" | "partial" | "failed"
+  google.protobuf.Timestamp generated_at = 4;
+
+  // sections is the v1 JSONB string (see internal/weeklyreview/types.go
+  // for the shape). The frontend deserialises it directly — kept as a
+  // string here so the wire contract doesn't have to mirror every Go
+  // struct change.
+  string sections_json = 5;
+}
