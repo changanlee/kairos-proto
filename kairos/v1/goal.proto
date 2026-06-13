@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package kairos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/changanlee/kairos-api/gen/proto/kairos/v1;kairosv1";
+
+// GoalService — Story 13.1 dated-goal CRUD + lifecycle.
+// Survival ring: one active goal per user; the trajectory itself is
+// written by the back-planner (Story 13.3) via UpdateGoalMilestones —
+// no trajectory-generation RPC lives here yet.
+service GoalService {
+  rpc CreateGoal(CreateGoalRequest) returns (CreateGoalResponse);
+  rpc GetActiveGoal(GetActiveGoalRequest) returns (GetActiveGoalResponse);
+  rpc ListGoals(ListGoalsRequest) returns (ListGoalsResponse);
+  // Lifecycle transitions. Both archive remaining trajectory tasks and
+  // strip pending future slots silently (FR81) — responses deliberately
+  // carry no "leftover count" (anti-guilt: NFR-E7).
+  rpc CompleteGoal(CompleteGoalRequest) returns (CompleteGoalResponse);
+  rpc AbandonGoal(AbandonGoalRequest) returns (AbandonGoalResponse);
+}
+
+message Milestone {
+  string title            = 1;
+  string target_date      = 2; // YYYY-MM-DD
+  string rationale        = 3;
+  string weekly_step_hint = 4;
+  string status           = 5; // pending | reached
+}
+
+message Goal {
+  string id       = 1;
+  string dream_id = 2;
+  string title    = 3;
+  string target   = 4; // free text, may be empty
+  string baseline = 5; // free text, may be empty
+  string deadline = 6; // YYYY-MM-DD
+  string status   = 7; // active | completed | abandoned
+  repeated Milestone milestones = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message CreateGoalRequest {
+  string dream_id = 1;
+  string title    = 2;
+  string target   = 3;
+  string baseline = 4;
+  string deadline = 5; // YYYY-MM-DD
+}
+message CreateGoalResponse {
+  Goal goal = 1;
+}
+
+message GetActiveGoalRequest {}
+message GetActiveGoalResponse {
+  Goal goal = 1; // unset when no active goal
+}
+
+message ListGoalsRequest {}
+message ListGoalsResponse {
+  repeated Goal goals = 1;
+}
+
+message CompleteGoalRequest {
+  string goal_id = 1;
+}
+message CompleteGoalResponse {
+  Goal goal = 1;
+}
+
+message AbandonGoalRequest {
+  string goal_id = 1;
+}
+message AbandonGoalResponse {
+  Goal goal = 1;
+}
