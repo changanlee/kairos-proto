@@ -20,6 +20,9 @@ service TaskService {
   rpc QuickCapture(QuickCaptureRequest) returns (QuickCaptureResponse);
   // Story 3.4: 25+5 pomodoro breakdown via LLM.
   rpc BreakdownLargeTask(BreakdownLargeTaskRequest) returns (BreakdownLargeTaskResponse);
+  // Story 13.12: conversational task capture — free text ("把冥想跟晨跑排進去")
+  // → extracted tasks created + today re-planned.
+  rpc CaptureFromText(CaptureFromTextRequest) returns (CaptureFromTextResponse);
 }
 
 // Task is the API-facing shape. Internal-only columns (gcal_event_id,
@@ -114,4 +117,12 @@ message Subunit {
   string label = 1;
   int32 duration_min = 2;
   int32 break_min = 3;
+}
+
+message CaptureFromTextRequest {
+  string text = 1; // free-text planning message
+}
+
+message CaptureFromTextResponse {
+  repeated Task tasks = 1; // tasks created from the message
 }
