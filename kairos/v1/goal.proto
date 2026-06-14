@@ -19,6 +19,15 @@ service GoalService {
   // carry no "leftover count" (anti-guilt: NFR-E7).
   rpc CompleteGoal(CompleteGoalRequest) returns (CompleteGoalResponse);
   rpc AbandonGoal(AbandonGoalRequest) returns (AbandonGoalResponse);
+
+  // ProposeTrajectory runs the back-planner against engine-computed capacity
+  // and returns an editable milestone proposal — nothing is persisted, so a
+  // rejected proposal leaves no trace (Story 13.4).
+  rpc ProposeTrajectory(ProposeTrajectoryRequest) returns (ProposeTrajectoryResponse);
+  // ConfirmGoal atomically creates the goal, stores the (possibly edited)
+  // milestones, and creates one task per milestone tagged with goal_id so the
+  // existing scheduler picks them up.
+  rpc ConfirmGoal(ConfirmGoalRequest) returns (ConfirmGoalResponse);
 }
 
 message Milestone {
@@ -74,5 +83,28 @@ message AbandonGoalRequest {
   string goal_id = 1;
 }
 message AbandonGoalResponse {
+  Goal goal = 1;
+}
+
+message ProposeTrajectoryRequest {
+  string dream_id = 1;
+  string title    = 2;
+  string target   = 3;
+  string baseline = 4;
+  string deadline = 5; // YYYY-MM-DD
+}
+message ProposeTrajectoryResponse {
+  repeated Milestone milestones = 1;
+}
+
+message ConfirmGoalRequest {
+  string dream_id = 1;
+  string title    = 2;
+  string target   = 3;
+  string baseline = 4;
+  string deadline = 5; // YYYY-MM-DD
+  repeated Milestone milestones = 6; // possibly edited by the user
+}
+message ConfirmGoalResponse {
   Goal goal = 1;
 }
