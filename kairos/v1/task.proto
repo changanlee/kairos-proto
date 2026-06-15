@@ -125,4 +125,10 @@ message CaptureFromTextRequest {
 
 message CaptureFromTextResponse {
   repeated Task tasks = 1; // tasks created from the message
+  // How many of the created tasks actually landed on today's schedule after
+  // the re-plan. -1 = couldn't determine (no schedule yet / regen failed) —
+  // the client should just say "added". Lets the client tell the truth
+  // instead of always claiming "scheduled" (Story 13.12 follow-up: a capture
+  // late in a full day leaves tasks in the inbox, not on /today).
+  int32 scheduled_today = 2;
 }
